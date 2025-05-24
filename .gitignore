@@ -8,3 +8,6 @@ readicns
 
 # Various
 *.swp
+
+*.iconset
+*.icns

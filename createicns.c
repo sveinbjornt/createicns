@@ -85,7 +85,7 @@ void PrintSystemError() {
 }
 
 void PrintUsage(const char* own_path) {
-  fprintf(stderr, "Usage: %s [iconset]\n", own_path);
+  fprintf(stderr, "Usage: %s [iconset] [outfile]\n", own_path);
 }
 
 char* Basename(const char* path, char* basename) {
@@ -108,45 +108,37 @@ char* Basename(const char* path, char* basename) {
   return basename;
 }
 
-const char* IconsetFromArguments(int argc, char* argv[]) {
-  if (argc < 2) {
-    PrintError("No path given to iconset directory.");
-    PrintUsage(argv[0]);
-    return NULL;
-  } else if (argc > 2) {
-    PrintError("Too many arguments.");
-    PrintUsage(argv[0]);
-    return NULL;
-  }
-
-  return argv[1];
-}
-
 bool WriteUint32(uint32_t to_write, FILE* file) {
   uint32_t msb_first = htonl(to_write);
   return fwrite(&msb_first, sizeof(msb_first), 1, file) == 1;
 }
 
-FILE* OpenIcnsFileForIconset(const char* iconset_path) {
+FILE* OpenIcnsFileForIconset(const char* iconset_path, const char* outfile_path) {
   char path[MAXPATHLEN];
-  if (!Basename(iconset_path, path)) {
-    PrintError("Can't determine basename for iconset");
-    return NULL;
+  FILE* file;
+
+  if (!outfile_path) {
+    if (!Basename(iconset_path, path)) {
+      PrintError("Can't determine basename for iconset");
+      return NULL;
+    }
+
+    const size_t path_length = strlen(path);
+    const size_t extension_length = sizeof(kIconsetExtension) - 1;
+    const size_t base_path_length = path_length - extension_length;
+
+    if (path_length <= extension_length ||
+        strncmp(path + base_path_length, kIconsetExtension, extension_length) !=
+            0) {
+      PrintError("Need .iconset directory as input.");
+      return NULL;
+    }
+    memcpy(path + base_path_length, kIcnsExtension, sizeof(kIcnsExtension));
+    file = fopen(path, "w");
+  } else {
+    file = fopen(outfile_path, "w");
   }
 
-  const size_t path_length = strlen(path);
-  const size_t extension_length = sizeof(kIconsetExtension) - 1;
-  const size_t base_path_length = path_length - extension_length;
-
-  if (path_length <= extension_length ||
-      strncmp(path + base_path_length, kIconsetExtension, extension_length) !=
-          0) {
-    PrintError("Need .iconset directory as input.");
-    return NULL;
-  }
-
-  memcpy(path + base_path_length, kIcnsExtension, sizeof(kIcnsExtension));
-  FILE* file = fopen(path, "w");
   if (!file) {
     PrintSystemError();
     return NULL;
@@ -241,14 +233,14 @@ bool WriteIcnsFileMetadata(FILE* file) {
   return size >= 0 && fseek(file, 4L, SEEK_SET) == 0 && WriteUint32(size, file);
 }
 
-bool CreateIcnsFromIconset(const char* iconset_path) {
+bool CreateIcnsFromIconset(const char* iconset_path, const char* outfile_path) {
   DIR* iconset = opendir(iconset_path);
   if (!iconset) {
     PrintSystemError();
     return false;
   }
 
-  FILE* icns = OpenIcnsFileForIconset(iconset_path);
+  FILE* icns = OpenIcnsFileForIconset(iconset_path, outfile_path);
   if (!icns)
     return false;
 
@@ -280,11 +272,28 @@ bool CreateIcnsFromIconset(const char* iconset_path) {
 }
 
 int main(int argc, char* argv[]) {
-  const char* iconset_path = IconsetFromArguments(argc, argv);
-  if (!iconset_path)
-    return -1;
+  const char *iconset_path = NULL;
+  const char *outfile_path = NULL;
 
-  if (!CreateIcnsFromIconset(iconset_path))
+  if (argc < 2) {
+    PrintError("No path given to iconset directory.");
+    PrintUsage(argv[0]);
+    return -1;
+  }
+  if (argc > 3) {
+    PrintError("Too many arguments.");
+    PrintUsage(argv[0]);
+    return -1;
+  }
+  if (argc == 2) {
+    iconset_path = argv[1];
+    outfile_path = NULL;
+  } else if (argc == 3) {
+    iconset_path = argv[1];
+    outfile_path = argv[2];
+  }
+
+  if (!CreateIcnsFromIconset(iconset_path, outfile_path))
     return -1;
 
   return 0;
