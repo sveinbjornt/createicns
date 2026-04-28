@@ -1,7 +1,8 @@
 # createicns
 
-This is a generator for the Apple Icon Image Format (.icns) which reads PNGs
-without changing them.
+This is a generator for the Apple Icon Image Format (.icns) which copies PNG
+image data through unchanged for icon sizes from 64×64 upward. The 16×16 and
+32×32 PNGs are a special case — see [Small icons](#small-icons) below.
 
 It's run like this: `createicons x.iconset` and outputs a file `x.icns`.
 
@@ -15,13 +16,29 @@ the list are processed by `createicns`.
 To generate a .iconset directory from an existing x.icns file, use
 `readicns x.icns`
 
-`createicns` is similar to running `iconutil -c icns x.iconset`, except it
-doesn't change the PNG images in any way.
+`createicns` is similar to running `iconutil -c icns x.iconset`, except for
+icon sizes from 64×64 upward it doesn't re-encode the PNG images.
 
 ## Installation
 
 `createicns` and `readicns` have only been tested on macOS. Use
-`make createicns` and `make readicns` to compile them.
+`make createicns` and `make readicns` to compile them. `createicns` bundles
+[`stb_image.h`](https://github.com/nothings/stb) for PNG decoding of the
+16×16 and 32×32 icons; no other dependencies are required.
+
+## Small icons
+
+The .icns format has two encodings for the 16×16 and 32×32 sizes: PNG (in the
+`icp4` and `icp5` chunks) or uncompressed ARGB with per-channel PackBits RLE
+(in `ic04` and `ic05`). macOS Finder and Dock render the PNG form garbled at
+1× backing scale on non-retina displays, so Apple's `iconutil` emits only the
+ARGB form, and `createicns` does the same.
+
+The trade-off: the bytes of `icon_16x16.png` and `icon_32x32.png` are not
+preserved in the output `.icns`. They are decoded, split into A/R/G/B
+channels, and re-encoded as ARGB-RLE. Optimizing those two PNGs with
+`pngquant` therefore has no effect on the output size. For 64×64 and larger,
+`createicns` still copies the PNG bytes through unchanged.
 
 ## Optimizing an icon set
 
